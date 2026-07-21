@@ -1,0 +1,19 @@
+# Backend (Python)
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.env
+backend/*.egg-info/
+
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env*.local
+frontend/next-env.d.ts
+frontend/*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+*.pem
+npm-debug.log*
