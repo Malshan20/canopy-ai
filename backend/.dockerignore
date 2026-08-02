@@ -1,0 +1,59 @@
+# --- Python ---
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage/
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# --- Virtual environments ---
+venv/
+.venv/
+env/
+ENV/
+
+# --- Secrets & environment ---
+.env
+.env.*
+!.env.example
+
+# --- Version control ---
+.git/
+.gitignore
+.github/
+
+# --- Node (frontend lives in a sibling directory, but guard against
+#     accidentally building from the repo root) ---
+node_modules/
+
+# --- Local runtime artifacts ---
+/tmp/
+*.log
+uploads/
+local_uploads/
+
+# --- IDE / editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- OS files ---
+.DS_Store
+Thumbs.db
+
+# --- Docs (don't affect runtime, keep the build context lean) ---
+README.md
+migrations/README
+
+# --- Docker itself ---
+Dockerfile
+.dockerignore
+docker-compose.yml

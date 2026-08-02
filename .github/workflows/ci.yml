@@ -1,0 +1,110 @@
+name: CI
+
+# Runs on every PR and push to main: backend syntax + import check, frontend
+# lint + build. Deliberately does NOT run the full Postgres-backed test
+# suite from this repo's build sessions (those require a live Postgres
+# instance with the local dev auth stub applied, real GROQ/GEMINI/GFW keys
+# or mocks, and take real time) — this workflow is the fast, cheap
+# first line of defense that catches syntax errors, import errors, lint
+# violations, and build breakage before merge. See DEPLOYMENT.md's
+# "Optional recommendations" for what a fuller CI/CD pipeline
+# (automated Docker builds, deployment on merge) would add on top of this.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (syntax, imports, migrations)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: canopyai_ci
+          POSTGRES_USER: canopyai_app
+          POSTGRES_PASSWORD: ci_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --break-system-packages
+
+      - name: Byte-compile every module (catches syntax/import errors)
+        run: |
+          python -m py_compile main.py app/core/*.py app/db/*.py app/services/*.py \
+            app/schemas/*.py app/models/*.py app/api/v1/*.py \
+            migrations/env.py migrations/versions/*.py
+
+      - name: Apply the local dev auth stub (Supabase's auth schema, self-hosted for CI)
+        env:
+          PGPASSWORD: ci_test_password
+        run: psql -h localhost -U canopyai_app -d canopyai_ci -f scripts/local_dev_auth_stub.sql
+
+      - name: Run every migration from a clean database
+        env:
+          GROQ_API_KEY: ci-placeholder
+          GEMINI_API_KEY: ci-placeholder
+          GFW_API_KEY: ci-placeholder
+          SUPABASE_URL: https://ci-placeholder.supabase.co
+          SUPABASE_JWT_SECRET: ci-placeholder-jwt-secret
+          DATABASE_URL: postgresql+asyncpg://canopyai_app:ci_test_password@localhost:5432/canopyai_ci
+        run: alembic upgrade head
+
+      - name: Confirm the app can actually import and construct (catches DI/router wiring errors)
+        env:
+          GROQ_API_KEY: ci-placeholder
+          GEMINI_API_KEY: ci-placeholder
+          GFW_API_KEY: ci-placeholder
+          SUPABASE_URL: https://ci-placeholder.supabase.co
+          SUPABASE_JWT_SECRET: ci-placeholder-jwt-secret
+          DATABASE_URL: postgresql+asyncpg://canopyai_app:ci_test_password@localhost:5432/canopyai_ci
+        run: python -c "import main; assert main.app.title"
+
+  frontend:
+    name: Frontend (lint, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npx eslint .
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          NEXT_PUBLIC_API_URL: https://ci-placeholder.example.com
+        run: npx next build

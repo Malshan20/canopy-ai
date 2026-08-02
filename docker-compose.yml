@@ -1,0 +1,53 @@
+# Optional: run the backend (+ its PostgreSQL database) in Docker for local
+# testing, matching production container behavior exactly. Not required
+# for day-to-day development — `./scripts/start-backend.sh` is faster for
+# that (it expects a PostgreSQL instance already running, e.g. installed
+# natively). Useful when you want to confirm the image behaves the same
+# locally as it will on Railway/etc.
+#
+# Usage:
+#   cp backend/.env.example backend/.env
+#   # In backend/.env, set DATABASE_URL to:
+#   #   postgresql+asyncpg://canopyai_app:canopyai_dev_password@db:5432/canopyai
+#   # (host is "db" — the service name below — not "localhost", since the
+#   # backend container reaches Postgres over the compose network)
+#   docker compose up --build
+#   # In another terminal, once the db service is healthy:
+#   docker compose exec backend alembic upgrade head
+#
+# The frontend is NOT included here — it deploys to Vercel, which builds
+# it natively without Docker. Run it separately with ./scripts/start-frontend.sh.
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=canopyai
+      - POSTGRES_USER=canopyai_app
+      - POSTGRES_PASSWORD=canopyai_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - canopyai_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U canopyai_app -d canopyai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - PORT=8000
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  canopyai_pg_data:
